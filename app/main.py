@@ -1,6 +1,8 @@
 import logging
+
 from telegram import (
     Update,
+    BotCommand,
     ReplyKeyboardRemove,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -51,6 +53,10 @@ STEPS = {
         "no_next": "driver",
     },
 }
+BOT_COMMANDS = [
+    BotCommand("start", "Начать опрос"),
+    BotCommand("done", "Завершить опрос"),
+]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -102,18 +108,20 @@ async def handle_q1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if q.data == "q1_yes":
         await q.message.reply_text("Отлично, все вышли. Опрос завершён.")
+        await q.edit_message_reply_markup(reply_markup=None)
         return ConversationHandler.END
 
     if q.data == "q1_no":
         await q.message.reply_text("Не все вышли. Делаем выбор водителей.")
+        await q.edit_message_reply_markup(reply_markup=None)
         await start_step(update, context, "driver")
         return STATE_FLOW
 
 
 async def start_step(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    step_name: str,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        step_name: str,
 ) -> None:
     q = update.callback_query
     step = STEPS[step_name]
@@ -186,10 +194,10 @@ async def handle_step(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def handle_list_step(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    step_name: str,
-    step: dict,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        step_name: str,
+        step: dict,
 ) -> int:
     q = update.callback_query
     try:
@@ -242,15 +250,16 @@ async def handle_list_step(
         await send_summary(update, context)
         return ConversationHandler.END
 
+    await q.edit_message_reply_markup(reply_markup=None)
     await q.message.reply_text(f"Вы выбрали {obj['name']}.")
     await start_step(update, context, next_step)
     return STATE_FLOW
 
 
 async def handle_binary_step(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    step: dict,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        step: dict,
 ) -> int:
     q = update.callback_query
     answer = q.data
@@ -293,6 +302,7 @@ async def handle_binary_step(
         next_step,
     )
 
+    await q.edit_message_reply_markup(reply_markup=None)
     if not next_step:
         await send_summary(update, context)
         return ConversationHandler.END
@@ -361,10 +371,15 @@ async def send_summary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
+async def post_init(application: Application) -> None:
+    await application.bot.set_my_commands(BOT_COMMANDS)
+
+
 def main() -> None:
     app = (
         Application.builder()
         .token(TOKEN)
+        .post_init(post_init)
         .build()
     )
 
